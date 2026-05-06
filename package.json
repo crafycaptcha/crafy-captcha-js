@@ -1,0 +1,20 @@
+{
+  "name": "crafy-captcha",
+  "version": "1.0.0",
+  "description": "Official documentation in https://captcha.crafy.net/docs/",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "esbuild src/CrafyCAPTCHA.js --bundle --minify --outfile=dist/CrafyCAPTCHA.min.js --format=iife"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}
