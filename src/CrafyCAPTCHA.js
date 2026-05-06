@@ -46,6 +46,10 @@ class CrafyCAPTCHA {
   }
 
   async init(containerRef, publicKey, publicToken, signingPublicKey, encryptedOptions, options = {}) {
+    // 1. Ceder el hilo de ejecución momentáneamente (Yield) 
+    // Evita bloquear la renderización inicial del DOM de la página del cliente
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     this.publicKey = publicKey;
     this.publicToken = publicToken;
     this.signingKey = signingPublicKey;
@@ -129,20 +133,17 @@ class CrafyCAPTCHA {
     url.searchParams.set('eo', this.encryptedOptions);
     url.searchParams.set('theme', this.computedStyles.theme);
 
+    // 1. Widget UI (Síncrono para que se vea rápido)
     this.startWidget = document.createElement('div');
     this.startWidget.className = 'crafy-start-box';
     this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox"></div><span class="crafy-text">${this._translate('Verifica que eres humano')}</span></div><div class="crafy-logo">🛡️</div>`;
 
-    this.startWidget.addEventListener('click', () => {
-      this.startWidget.style.display = 'none';
-      this.iframe.style.display = 'block';
-      this.footerControl.style.visibility = 'visible';
-    });
-
+    // 2. Iframe (Estructura base, SIN src inicialmente)
     this.iframe = document.createElement('iframe');
-    this.iframe.src = url.toString();
+    this.iframe.setAttribute('loading', 'lazy'); // Atributo nativo no-bloqueante
     this.iframe.style = 'width: 100%; height: 420px; border: none; overflow: hidden; display: none;';
 
+    // Footer UI
     this.footerControl = document.createElement('div');
     this.footerControl.className = 'crafy-footer';
     this.footerControl.style.visibility = 'hidden';
@@ -152,10 +153,40 @@ class CrafyCAPTCHA {
       e.preventDefault(); e.stopPropagation(); this.reset();
     });
 
+    // Inyectar en el DOM
     this.container.append(this.startWidget, this.iframe, this.footerControl);
+
+    // --- ESTRATEGIA DE CARGA ASÍNCRONA DEL IFRAME ---
+    let iframeSrcSet = false;
+    const deferredLoadIframe = () => {
+      if (!iframeSrcSet) {
+        this.iframe.src = url.toString(); // Esto dispara la petición de red
+        iframeSrcSet = true;
+      }
+    };
+
+    // Evento Click: Si el usuario hace clic antes de que se haya cargado por inactividad, lo forzamos.
+    this.startWidget.addEventListener('click', () => {
+      deferredLoadIframe();
+      this.startWidget.style.display = 'none';
+      this.iframe.style.display = 'block';
+      this.footerControl.style.visibility = 'visible';
+    });
+
+    // Ejecutar de forma no intrusiva usando requestIdleCallback (si está disponible) o un setTimeout
+    if (typeof window !== 'undefined') {
+      if (window.requestIdleCallback) {
+        // Le damos hasta 2 segundos para encontrar un momento inactivo antes de forzar la pre-carga
+        window.requestIdleCallback(deferredLoadIframe, { timeout: 2000 });
+      } else {
+        // Fallback para Safari / Navegadores antiguos (esperamos medio segundo)
+        setTimeout(deferredLoadIframe, 500);
+      }
+    }
   }
 
   reset() {
+    if (!this.iframe.src) return; // Protección contra reset prematuro
     const url = new URL(this.iframe.src);
     url.searchParams.set('retry', Date.now());
     this.iframe.src = url.toString();
@@ -206,8 +237,8 @@ class CrafyCAPTCHA {
       if (typeof window === 'undefined' || window.turnstile) return resolve();
       const script = document.createElement('script');
       script.src = CONFIG.turnstileScript;
-      script.async = true;
-      script.defer = true;
+      script.async = true; // Carga de forma no bloqueante
+      script.defer = true; // Asegura la correcta ejecución post-descarga
       script.onload = resolve;
       document.head.appendChild(script);
     });

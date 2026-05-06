@@ -1,6 +1,6 @@
 {
-  "name": "crafy-captcha",
-  "version": "1.0.0",
+  "name": "crafy-captcha-js",
+  "version": "1.0.1",
   "description": "Official documentation in https://captcha.crafy.net/docs/",
   "main": "index.js",
   "scripts": {
