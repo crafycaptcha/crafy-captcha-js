@@ -1,15 +1,28 @@
 {
-  "name": "crafy-captcha-js",
+  "name": "@crafyholding/crafy-captcha-js",
   "version": "1.0.1",
-  "description": "Official documentation in https://captcha.crafy.net/docs/",
-  "main": "index.js",
+  "description": "Vanilla JS Client SDK for CrafyCAPTCHA",
+  "main": "dist/CrafyCAPTCHA.min.js",
+  "module": "dist/CrafyCAPTCHA.min.js",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "esbuild src/CrafyCAPTCHA.js --bundle --minify --outfile=dist/CrafyCAPTCHA.min.js --format=iife"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "captcha",
+    "crafy",
+    "security",
+    "bot-protection"
+  ],
+  "author": "CrafyCAPTCHA <hello@captcha.crafy.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crafycaptcha/crafy-captcha-js.git"
+  },
   "dependencies": {
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1"
