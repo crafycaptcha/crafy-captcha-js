@@ -117,6 +117,8 @@ class CrafyCAPTCHA {
       .crafy-reload-btn { background: none; border: none; color: ${s.primary}; cursor: pointer; padding: 4px; display: flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 500; }
       .crafy-reload-btn:hover { text-decoration: underline; opacity: 0.8; }
       .crafy-reload-icon { font-size: 14px; line-height: 1; }
+      .crafy-link { color: ${s.primary}; text-decoration: none; }
+      .crafy-link:hover { text-decoration: underline; }
     `;
     const style = document.createElement('style');
     style.id = 'crafy-styles';
@@ -139,15 +141,16 @@ class CrafyCAPTCHA {
     this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox"></div><span class="crafy-text">${this._translate('Verifica que eres humano')}</span></div><div class="crafy-logo">🛡️</div>`;
 
     // 2. Iframe (Estructura base, SIN src inicialmente)
+    // NO usar loading="lazy": el navegador ignora iframes con display:none
+    // y cuando se combinan lazy + hidden, la carga nunca se dispara.
     this.iframe = document.createElement('iframe');
-    this.iframe.setAttribute('loading', 'lazy'); // Atributo nativo no-bloqueante
-    this.iframe.style = 'width: 100%; height: 420px; border: none; overflow: hidden; display: none;';
+    this.iframe.style.cssText = 'width:0;height:0;border:none;overflow:hidden;position:absolute;opacity:0;pointer-events:none;';
 
     // Footer UI
     this.footerControl = document.createElement('div');
     this.footerControl.className = 'crafy-footer';
     this.footerControl.style.visibility = 'hidden';
-    this.footerControl.innerHTML = `<span>Protected by CrafyCAPTCHA</span><button type="button" class="crafy-reload-btn"><span class="crafy-reload-icon">↻</span> ${this._translate('Nuevo Desafío')}</button>`;
+    this.footerControl.innerHTML = `<span>Protected by <a href="https://captcha.crafy.net/" target="_blank" rel="noopener noreferrer" class="crafy-link">CrafyCAPTCHA</a></span><button type="button" class="crafy-reload-btn"><span class="crafy-reload-icon">↻</span> ${this._translate('Nuevo Desafío')}</button>`;
 
     this.footerControl.querySelector('.crafy-reload-btn').addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.reset();
@@ -156,43 +159,46 @@ class CrafyCAPTCHA {
     // Inyectar en el DOM
     this.container.append(this.startWidget, this.iframe, this.footerControl);
 
-    // --- ESTRATEGIA DE CARGA ASÍNCRONA DEL IFRAME ---
+    // --- ESTRATEGIA DE PRE-CARGA DEL IFRAME ---
+    // El iframe se carga en segundo plano (invisible pero renderizable por el navegador)
+    // para que cuando el usuario haga clic, el contenido ya esté listo.
     let iframeSrcSet = false;
-    const deferredLoadIframe = () => {
-      if (!iframeSrcSet) {
-        this.iframe.src = url.toString(); // Esto dispara la petición de red
-        iframeSrcSet = true;
-      }
+    const preloadIframe = () => {
+      if (iframeSrcSet) return;
+      this.iframe.src = url.toString();
+      iframeSrcSet = true;
     };
 
-    // Evento Click: Si el usuario hace clic antes de que se haya cargado por inactividad, lo forzamos.
+    // Evento Click: mostrar el iframe ya pre-cargado (o forzar carga si aún no ocurrió)
     this.startWidget.addEventListener('click', () => {
-      deferredLoadIframe();
+      preloadIframe();
       this.startWidget.style.display = 'none';
-      this.iframe.style.display = 'block';
+      this.iframe.style.cssText = 'width:100%;height:420px;border:none;overflow:hidden;';
       this.footerControl.style.visibility = 'visible';
     });
 
-    // Ejecutar de forma no intrusiva usando requestIdleCallback (si está disponible) o un setTimeout
+    // Pre-cargar el iframe de forma no intrusiva:
+    // requestIdleCallback (con timeout de 2s) > setTimeout 500ms como fallback.
+    // Esto asegura que el iframe empiece a cargar poco después del render inicial
+    // de la página, sin competir con los recursos críticos del host.
     if (typeof window !== 'undefined') {
       if (window.requestIdleCallback) {
-        // Le damos hasta 2 segundos para encontrar un momento inactivo antes de forzar la pre-carga
-        window.requestIdleCallback(deferredLoadIframe, { timeout: 2000 });
+        window.requestIdleCallback(preloadIframe, { timeout: 2000 });
       } else {
-        // Fallback para Safari / Navegadores antiguos (esperamos medio segundo)
-        setTimeout(deferredLoadIframe, 500);
+        setTimeout(preloadIframe, 500);
       }
     }
   }
 
   reset() {
-    if (!this.iframe.src) return; // Protección contra reset prematuro
+    if (!this.iframe || !this.iframe.src) return;
     const url = new URL(this.iframe.src);
     url.searchParams.set('retry', Date.now());
     this.iframe.src = url.toString();
     if (typeof window !== 'undefined' && window.turnstile && this.turnstileWidgetId) {
       turnstile.reset(this.turnstileWidgetId);
     }
+    this._hideTurnstileWidget();
   }
 
   async _handleMessage(event) {
@@ -233,15 +239,42 @@ class CrafyCAPTCHA {
   }
 
   _loadTurnstile() {
-    return new Promise((resolve) => {
+    if (this._turnstileLoadPromise) return this._turnstileLoadPromise;
+
+    this._turnstileLoadPromise = new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || window.turnstile) return resolve();
       const script = document.createElement('script');
       script.src = CONFIG.turnstileScript;
-      script.async = true; // Carga de forma no bloqueante
-      script.defer = true; // Asegura la correcta ejecución post-descarga
+      script.async = true;
       script.onload = resolve;
+      script.onerror = () => reject(new Error('[Crafy] Failed to load Turnstile script'));
       document.head.appendChild(script);
     });
+
+    return this._turnstileLoadPromise;
+  }
+
+  _showTurnstileWidget() {
+    const tDiv = document.getElementById('crafy-turnstile-hidden');
+    if (tDiv) {
+      tDiv.style.display = 'flex';
+      tDiv.style.position = 'fixed';
+      tDiv.style.top = '0';
+      tDiv.style.left = '0';
+      tDiv.style.width = '100vw';
+      tDiv.style.height = '100vh';
+      tDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+      tDiv.style.zIndex = '9999999';
+      tDiv.style.alignItems = 'center';
+      tDiv.style.justifyContent = 'center';
+    }
+  }
+
+  _hideTurnstileWidget() {
+    const tDiv = document.getElementById('crafy-turnstile-hidden');
+    if (tDiv) {
+      tDiv.style.display = 'none';
+    }
   }
 
   _renderTurnstile(siteKey) {
@@ -251,13 +284,25 @@ class CrafyCAPTCHA {
       tDiv = document.createElement('div');
       tDiv.id = 'crafy-turnstile-hidden';
       tDiv.style.display = 'none';
+      tDiv.addEventListener('click', (e) => {
+        if (e.target === tDiv) this._hideTurnstileWidget();
+      });
       document.body.appendChild(tDiv);
     }
     try {
       this.turnstileWidgetId = turnstile.render('#crafy-turnstile-hidden', {
         sitekey: siteKey,
-        callback: (token) => this._sendToIframe('TURNSTILE_SOLVED', { token }),
-        'error-callback': () => console.warn('[Crafy] Error Turnstile')
+        callback: (token) => {
+          this._hideTurnstileWidget();
+          this._sendToIframe('TURNSTILE_SOLVED', { token });
+        },
+        'error-callback': () => {
+          this._hideTurnstileWidget();
+          console.warn('[Crafy] Error Turnstile');
+        },
+        'before-interactive-callback': () => this._showTurnstileWidget(),
+        'after-interactive-callback': () => this._hideTurnstileWidget(),
+        'unsupported-callback': () => this._hideTurnstileWidget()
       });
     } catch (e) {
       if (typeof turnstile !== 'undefined') turnstile.reset('#crafy-turnstile-hidden');
