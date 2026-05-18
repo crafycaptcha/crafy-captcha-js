@@ -70,6 +70,8 @@ class CrafyCAPTCHA {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('message', this._handleMessage.bind(this));
+      // Start loading Turnstile in the background to speed up subsequent renders
+      this._loadTurnstile().catch(() => { });
     }
   }
 
@@ -216,8 +218,13 @@ class CrafyCAPTCHA {
       if (!this._verifySignature(payload, signature)) return;
       let decoded_payload = typeof payload === 'string' ? JSON.parse(payload).payload : (payload.payload || payload);
       this.flowToken = decoded_payload.flow_token;
-      await this._loadTurnstile();
-      this._renderTurnstile(decoded_payload.site_key);
+
+      if (decoded_payload.site_key) {
+        await this._loadTurnstile();
+        this._renderTurnstile(decoded_payload.site_key);
+      } else {
+        this._sendToIframe('TURNSTILE_SOLVED', { token: 'skipped' });
+      }
     }
 
     if (action === 'CHALLENGE_COMPLETE') {
@@ -289,6 +296,13 @@ class CrafyCAPTCHA {
       });
       document.body.appendChild(tDiv);
     }
+
+    // Si ya existe el widget, simplemente lo reseteamos para que lance un nuevo desafío.
+    if (this.turnstileWidgetId !== null && typeof turnstile !== 'undefined') {
+      turnstile.reset(this.turnstileWidgetId);
+      return;
+    }
+
     try {
       this.turnstileWidgetId = turnstile.render('#crafy-turnstile-hidden', {
         sitekey: siteKey,
