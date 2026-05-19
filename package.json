@@ -1,6 +1,6 @@
 {
   "name": "@crafyholding/crafy-captcha-js",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Vanilla JS Client SDK for CrafyCAPTCHA",
   "main": "dist/CrafyCAPTCHA.min.js",
   "module": "dist/CrafyCAPTCHA.min.js",

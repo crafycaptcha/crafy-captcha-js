@@ -250,9 +250,16 @@ class CrafyCAPTCHA {
 
     this._turnstileLoadPromise = new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || window.turnstile) return resolve();
+
+      const preconnect = document.createElement('link');
+      preconnect.rel = 'preconnect';
+      preconnect.href = 'https://challenges.cloudflare.com';
+      document.head.appendChild(preconnect);
+
       const script = document.createElement('script');
       script.src = CONFIG.turnstileScript;
       script.async = true;
+      script.defer = true;
       script.onload = resolve;
       script.onerror = () => reject(new Error('[Crafy] Failed to load Turnstile script'));
       document.head.appendChild(script);
@@ -280,7 +287,7 @@ class CrafyCAPTCHA {
   _hideTurnstileWidget() {
     const tDiv = document.getElementById('crafy-turnstile-hidden');
     if (tDiv) {
-      tDiv.style.display = 'none';
+      tDiv.style.cssText = 'position: absolute; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none; z-index: -1;';
     }
   }
 
@@ -290,7 +297,7 @@ class CrafyCAPTCHA {
     if (!tDiv) {
       tDiv = document.createElement('div');
       tDiv.id = 'crafy-turnstile-hidden';
-      tDiv.style.display = 'none';
+      tDiv.style.cssText = 'position: absolute; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none; z-index: -1;';
       tDiv.addEventListener('click', (e) => {
         if (e.target === tDiv) this._hideTurnstileWidget();
       });
@@ -306,6 +313,7 @@ class CrafyCAPTCHA {
     try {
       this.turnstileWidgetId = turnstile.render('#crafy-turnstile-hidden', {
         sitekey: siteKey,
+        appearance: 'interaction-only',
         callback: (token) => {
           this._hideTurnstileWidget();
           this._sendToIframe('TURNSTILE_SOLVED', { token });
