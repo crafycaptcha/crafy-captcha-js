@@ -7,17 +7,23 @@ const CONFIG = {
 };
 
 const DICTIONARY = {
-  es: { 'Verifica que eres humano': "Verifica que eres humano", 'Nuevo Desafío': "Nuevo Desafío" },
-  en: { 'Verifica que eres humano': "Verify that you are human", 'Nuevo Desafío': "New Challenge" },
-  fr: { 'Verifica que eres humano': "Vérifiez que vous êtes humain", 'Nuevo Desafío': "Nouveau défi" },
-  pt: { 'Verifica que eres humano': "Verifique se você é humano", 'Nuevo Desafío': "Novo Desafio" },
-  de: { 'Verifica que eres humano': "Bestätigen Sie, dass Sie ein Mensch sind", 'Nuevo Desafío': "Neue Herausforderung" },
-  it: { 'Verifica que eres humano': "Verifica di essere umano", 'Nuevo Desafío': "Nuova sfida" },
-  ru: { 'Verifica que eres humano': "Подтвердите, что вы человек", 'Nuevo Desafío': "Новое испытание" },
-  zh: { 'Verifica que eres humano': "验证您是人类", 'Nuevo Desafío': "新挑战" },
-  ja: { 'Verifica que eres humano': "人間であることを確認してください", 'Nuevo Desafío': "新しいチャレンジ" },
-  hi: { 'Verifica que eres humano': "सत्यापित करें कि आप मानव हैं", 'Nuevo Desafío': "नई चुनौती" }
+  es: { 'Verifica que eres humano': "Verifica que eres humano", 'Nuevo Desafío': "Nuevo Desafío", 'Error de conexión. Recarga la página.': "Error de conexión. Recarga la página." },
+  en: { 'Verifica que eres humano': "Verify that you are human", 'Nuevo Desafío': "New Challenge", 'Error de conexión. Recarga la página.': "Connection error. Please reload the page." },
+  fr: { 'Verifica que eres humano': "Vérifiez que vous êtes humain", 'Nuevo Desafío': "Nouveau défi", 'Error de conexión. Recarga la página.': "Erreur de connexion. Veuillez recharger la page." },
+  pt: { 'Verifica que eres humano': "Verifique se você é humano", 'Nuevo Desafío': "Novo Desafio", 'Error de conexión. Recarga la página.': "Erro de conexão. Por favor, recarregue a página." },
+  de: { 'Verifica que eres humano': "Bestätigen Sie, dass Sie ein Mensch sind", 'Nuevo Desafío': "Neue Herausforderung", 'Error de conexión. Recarga la página.': "Verbindungsfehler. Bitte laden Sie die Seite neu." },
+  it: { 'Verifica que eres humano': "Verifica di essere umano", 'Nuevo Desafío': "Nuova sfida", 'Error de conexión. Recarga la página.': "Errore di connessione. Ricarica la pagina." },
+  ru: { 'Verifica que eres humano': "Подтвердите, что вы человек", 'Nuevo Desafío': "Новое испытание", 'Error de conexión. Recarga la página.': "Ошибка подключения. Пожалуйста, перезагрузите страницу." },
+  zh: { 'Verifica que eres humano': "验证您是人类", 'Nuevo Desafío': "新挑战", 'Error de conexión. Recarga la página.': "连接错误。请重新加载页面。" },
+  ja: { 'Verifica que eres humano': "人間であることを確認してください", 'Nuevo Desafío': "新しいチャレンジ", 'Error de conexión. Recarga la página.': "接続エラー。ページを再読み込みしてください。" },
+  hi: { 'Verifica que eres humano': "सत्यापित करें कि आप मानव हैं", 'Nuevo Desafío': "नई चुनौती", 'Error de conexión. Recarga la página.': "कनेक्शन त्रुटि। कृपया पृष्ठ को पुनः लोड करें।" }
 };
+
+function utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  const binString = String.fromCodePoint(...bytes);
+  return btoa(binString);
+}
 
 class CrafyCAPTCHA {
   constructor() {
@@ -35,6 +41,7 @@ class CrafyCAPTCHA {
     this.isSolved = false;
     this.lang = 'es';
     this.computedStyles = {};
+    this.shadowRoot = null;
 
     const rawLang = (typeof navigator !== 'undefined' && navigator.languages && navigator.languages.length)
       ? navigator.languages[0]
@@ -65,13 +72,61 @@ class CrafyCAPTCHA {
 
     if (!this.container) return;
 
+    if (this.container.hasAttribute('data-crafy-initialized')) {
+      console.warn('[CrafyCAPTCHA] El widget ya está inicializado en este contenedor.');
+      return;
+    }
+    this.container.setAttribute('data-crafy-initialized', 'true');
+
+    this.shadowRoot = this.container.attachShadow({ mode: 'closed' });
+
     this._injectStyles();
     this._renderInterface();
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('message', this._handleMessage.bind(this));
+      this._messageHandler = this._handleMessage.bind(this);
+      window.addEventListener('message', this._messageHandler);
       // Start loading Turnstile in the background to speed up subsequent renders
       this._loadTurnstile().catch(() => { });
+
+      this._onlineHandler = () => this._recoverNetwork();
+      this._offlineHandler = () => this._showOfflineWarning();
+      window.addEventListener('online', this._onlineHandler);
+      window.addEventListener('offline', this._offlineHandler);
+    }
+
+    this.parentForm = this.container.closest('form');
+    if (this.parentForm) {
+      this.parentForm.addEventListener('submit', (e) => {
+        if (!this.isSolved) {
+          e.preventDefault();
+          if (this._showCaptchaUI) this._showCaptchaUI();
+          this._pendingSubmit = true;
+        }
+      });
+    }
+  }
+
+  destroy() {
+    if (typeof window !== 'undefined' && this._messageHandler) {
+      window.removeEventListener('message', this._messageHandler);
+      window.removeEventListener('online', this._onlineHandler);
+      window.removeEventListener('offline', this._offlineHandler);
+    }
+    if (this._tamperObserver) {
+      this._tamperObserver.disconnect();
+      this._tamperObserver = null;
+    }
+    if (this._expireTimer) {
+      clearTimeout(this._expireTimer);
+      this._expireTimer = null;
+    }
+    if (this.container) {
+      this.container.removeAttribute('data-crafy-initialized');
+      if (this.shadowRoot) {
+        this.shadowRoot.innerHTML = '';
+      }
+      this.container.innerHTML = '';
     }
   }
 
@@ -105,10 +160,11 @@ class CrafyCAPTCHA {
 
   _injectStyles() {
     if (typeof document === 'undefined') return;
-    if (document.getElementById('crafy-styles')) document.getElementById('crafy-styles').remove();
 
     const s = this.computedStyles;
     const css = `
+      .crafy-wrapper { all: initial; display: block; width: 100%; height: 100%; }
+      iframe { border: none; margin: 0; padding: 0; }
       .crafy-start-box { margin: auto; display: flex; align-items: center; justify-content: space-between; background: ${s.bg}; border: 1px solid ${s.border}; border-radius: 6px; padding: 12px 16px; cursor: pointer; font-family: -apple-system, system-ui, sans-serif; transition: all 0.2s ease; user-select: none; max-width: 350px; }
       .crafy-start-box:hover { background: ${s.bgHover}; border-color: ${s.text}; }
       .crafy-content { display: flex; align-items: center; gap: 12px; }
@@ -125,17 +181,31 @@ class CrafyCAPTCHA {
     const style = document.createElement('style');
     style.id = 'crafy-styles';
     style.appendChild(document.createTextNode(css));
-    document.head.appendChild(style);
+
+    const oldStyle = this.shadowRoot.querySelector('#crafy-styles');
+    if (oldStyle) oldStyle.remove();
+    this.shadowRoot.appendChild(style);
   }
 
   _renderInterface() {
     if (typeof document === 'undefined') return;
-    this.container.innerHTML = '';
+
+    const children = Array.from(this.shadowRoot.childNodes);
+    children.forEach(child => {
+      if (child.id !== 'crafy-styles') {
+        this.shadowRoot.removeChild(child);
+      }
+    });
 
     const url = new URL(this.iframeUrl);
     url.searchParams.set('pt', this.publicToken);
     url.searchParams.set('eo', this.encryptedOptions);
     url.searchParams.set('theme', this.computedStyles.theme);
+
+    const fragment = document.createDocumentFragment();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'crafy-wrapper';
 
     // 1. Widget UI (Síncrono para que se vea rápido)
     this.startWidget = document.createElement('div');
@@ -143,10 +213,25 @@ class CrafyCAPTCHA {
     this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox"></div><span class="crafy-text">${this._translate('Verifica que eres humano')}</span></div><div class="crafy-logo">🛡️</div>`;
 
     // 2. Iframe (Estructura base, SIN src inicialmente)
-    // NO usar loading="lazy": el navegador ignora iframes con display:none
-    // y cuando se combinan lazy + hidden, la carga nunca se dispara.
     this.iframe = document.createElement('iframe');
-    this.iframe.style.cssText = 'width:0;height:0;border:none;overflow:hidden;position:absolute;opacity:0;pointer-events:none;';
+    // No usar loading='lazy': el iframe está off-screen y el navegador nunca lo cargaría
+    this.iframe.sandbox = "allow-scripts allow-same-origin allow-popups allow-forms";
+    this.iframe.title = this._translate('Verifica que eres humano');
+    this.iframe.setAttribute('aria-label', 'CrafyCAPTCHA Security Check');
+    this.iframe.setAttribute('aria-hidden', 'true');
+    this.iframe.tabIndex = -1;
+    this.iframe.style.cssText = `
+      position: absolute !important;
+      top: -9999px !important;
+      left: -9999px !important;
+      width: 1px !important;
+      height: 1px !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: none !important;
+      z-index: -2147483648 !important;
+      border: none !important;
+    `;
 
     // Footer UI
     this.footerControl = document.createElement('div');
@@ -158,8 +243,15 @@ class CrafyCAPTCHA {
       e.preventDefault(); e.stopPropagation(); this.reset();
     });
 
-    // Inyectar en el DOM
-    this.container.append(this.startWidget, this.iframe, this.footerControl);
+    // Ensamblar en memoria
+    wrapper.appendChild(this.startWidget);
+    wrapper.appendChild(this.iframe);
+    wrapper.appendChild(this.footerControl);
+
+    fragment.appendChild(wrapper);
+
+    // Inyectar TODO de un solo golpe al DOM real (1 solo reflow) dentro del shadowRoot
+    this.shadowRoot.appendChild(fragment);
 
     // --- ESTRATEGIA DE PRE-CARGA DEL IFRAME ---
     // El iframe se carga en segundo plano (invisible pero renderizable por el navegador)
@@ -171,13 +263,25 @@ class CrafyCAPTCHA {
       iframeSrcSet = true;
     };
 
-    // Evento Click: mostrar el iframe ya pre-cargado (o forzar carga si aún no ocurrió)
-    this.startWidget.addEventListener('click', () => {
+    this._showCaptchaUI = () => {
       preloadIframe();
       this.startWidget.style.display = 'none';
-      this.iframe.style.cssText = 'width:100%;height:420px;border:none;overflow:hidden;';
+      this.iframe.style.cssText = `
+        position: relative !important;
+        width: 100% !important;
+        height: 420px !important;
+        pointer-events: auto !important;
+        z-index: 1000 !important;
+        border: none !important;
+        overflow: hidden !important;
+      `;
+      this.iframe.removeAttribute('aria-hidden');
+      this.iframe.tabIndex = 0;
       this.footerControl.style.visibility = 'visible';
-    });
+    };
+
+    // Evento Click: mostrar el iframe ya pre-cargado (o forzar carga si aún no ocurrió)
+    this.startWidget.addEventListener('click', this._showCaptchaUI);
 
     // Pre-cargar el iframe de forma no intrusiva:
     // requestIdleCallback (con timeout de 2s) > setTimeout 500ms como fallback.
@@ -205,6 +309,7 @@ class CrafyCAPTCHA {
 
   async _handleMessage(event) {
     if (event.origin !== new URL(this.iframeUrl).origin) return;
+    if (event.source !== this.iframe.contentWindow) return;
     const { action, payload, signature, server_sign } = event.data;
 
     if (action === 'RESIZE' && payload?.height && this.iframe) {
@@ -215,21 +320,25 @@ class CrafyCAPTCHA {
     if (!action || !payload) return;
 
     if (action === 'INIT_TURNSTILE') {
-      if (!this._verifySignature(payload, signature)) return;
-      let decoded_payload = typeof payload === 'string' ? JSON.parse(payload).payload : (payload.payload || payload);
-      this.flowToken = decoded_payload.flow_token;
+      setTimeout(async () => {
+        if (!this._verifySignature(payload, signature)) return;
+        let decoded_payload = typeof payload === 'string' ? JSON.parse(payload).payload : (payload.payload || payload);
+        this.flowToken = decoded_payload.flow_token;
 
-      if (decoded_payload.site_key) {
-        await this._loadTurnstile();
-        this._renderTurnstile(decoded_payload.site_key);
-      } else {
-        this._sendToIframe('TURNSTILE_SOLVED', { token: 'skipped' });
-      }
+        if (decoded_payload.site_key) {
+          await this._loadTurnstile();
+          this._renderTurnstile(decoded_payload.site_key);
+        } else {
+          this._sendToIframe('TURNSTILE_SOLVED', { token: 'skipped' });
+        }
+      }, 0);
     }
 
     if (action === 'CHALLENGE_COMPLETE') {
-      if (!this._verifySignature(payload, signature)) return;
-      this._handleSuccess(payload, server_sign);
+      setTimeout(() => {
+        if (!this._verifySignature(payload, signature)) return;
+        this._handleSuccess(payload, server_sign);
+      }, 0);
     }
   }
 
@@ -251,17 +360,48 @@ class CrafyCAPTCHA {
     this._turnstileLoadPromise = new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || window.turnstile) return resolve();
 
+      if (document.getElementById('crafy-turnstile-script')) {
+        const checkTurnstile = setInterval(() => {
+          if (window.turnstile) { clearInterval(checkTurnstile); resolve(); }
+        }, 50);
+        return;
+      }
+
       const preconnect = document.createElement('link');
       preconnect.rel = 'preconnect';
       preconnect.href = 'https://challenges.cloudflare.com';
       document.head.appendChild(preconnect);
 
       const script = document.createElement('script');
+      script.id = 'crafy-turnstile-script';
       script.src = CONFIG.turnstileScript;
       script.async = true;
       script.defer = true;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('[Crafy] Failed to load Turnstile script'));
+      if (this.options && this.options.cspNonce) {
+        script.nonce = this.options.cspNonce;
+      }
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Turnstile load timeout'));
+        if (this.container) {
+          this.container.innerHTML = `<p class="crafy-error" style="color:red; font-size:14px; text-align:center;">${this._translate('Error de conexión. Recarga la página.')}</p>`;
+        }
+      }, 7000);
+
+      script.onload = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+
+      script.onerror = () => {
+        clearTimeout(timeout);
+        this._reportFatalError('TURNSTILE_BLOCKED', 'No se pudo cargar el script de Cloudflare');
+        reject(new Error('Turnstile blocked by network'));
+        if (this.container) {
+          this.container.innerHTML = `<p class="crafy-error" style="color:red; font-size:14px; text-align:center;">${this._translate('Error de conexión. Recarga la página.')}</p>`;
+        }
+      };
+
       document.head.appendChild(script);
     });
 
@@ -271,23 +411,38 @@ class CrafyCAPTCHA {
   _showTurnstileWidget() {
     const tDiv = document.getElementById('crafy-turnstile-hidden');
     if (tDiv) {
-      tDiv.style.display = 'flex';
-      tDiv.style.position = 'fixed';
-      tDiv.style.top = '0';
-      tDiv.style.left = '0';
-      tDiv.style.width = '100vw';
-      tDiv.style.height = '100vh';
-      tDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-      tDiv.style.zIndex = '9999999';
-      tDiv.style.alignItems = 'center';
-      tDiv.style.justifyContent = 'center';
+      tDiv.style.cssText = `
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background-color: rgba(0, 0, 0, 0.6) !important;
+        z-index: 2147483647 !important;
+        align-items: center !important;
+        justify-content: center !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      `;
     }
   }
 
   _hideTurnstileWidget() {
     const tDiv = document.getElementById('crafy-turnstile-hidden');
     if (tDiv) {
-      tDiv.style.cssText = 'position: absolute; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none; z-index: -1;';
+      tDiv.style.cssText = `
+        position: absolute !important;
+        top: -9999px !important;
+        left: -9999px !important;
+        width: 1px !important;
+        height: 1px !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: none !important;
+        z-index: -2147483648 !important;
+      `;
     }
   }
 
@@ -297,7 +452,17 @@ class CrafyCAPTCHA {
     if (!tDiv) {
       tDiv = document.createElement('div');
       tDiv.id = 'crafy-turnstile-hidden';
-      tDiv.style.cssText = 'position: absolute; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none; z-index: -1;';
+      tDiv.style.cssText = `
+        position: absolute !important;
+        top: -9999px !important;
+        left: -9999px !important;
+        width: 1px !important;
+        height: 1px !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: none !important;
+        z-index: -2147483648 !important;
+      `;
       tDiv.addEventListener('click', (e) => {
         if (e.target === tDiv) this._hideTurnstileWidget();
       });
@@ -354,10 +519,115 @@ class CrafyCAPTCHA {
       (this.container.closest('form') || this.container).appendChild(input);
     }
 
-    const payload_for_server_str = btoa(JSON.stringify({ payload, server_sign }));
+    const payload_for_server_str = utf8ToBase64(JSON.stringify({ payload, server_sign }));
     input.value = payload_for_server_str;
     this.container.dispatchEvent(new CustomEvent('crafy:success', { detail: payload_for_server_str }));
     if (this.options.onSuccess) this.options.onSuccess(payload_for_server_str);
+
+    this._protectTokenInput(input, payload_for_server_str);
+
+    if (this._expireTimer) clearTimeout(this._expireTimer);
+    this._expireTimer = setTimeout(() => {
+      input.value = '';
+      this.isSolved = false;
+      this._showExpiredUI();
+      if (this.options.onExpire) this.options.onExpire();
+    }, 19 * 60 * 1000);
+
+    if (this._pendingSubmit && this.parentForm) {
+      this.parentForm.submit();
+    }
+  }
+
+  _protectTokenInput(inputElement, validToken) {
+    if (this._tamperObserver) this._tamperObserver.disconnect();
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+          if (inputElement.value !== validToken && inputElement.value !== '') {
+            console.warn('[CrafyCAPTCHA] Intento de manipulación detectado.');
+            inputElement.value = validToken;
+          }
+        }
+        if (mutation.type === 'childList' && Array.from(mutation.removedNodes).includes(inputElement)) {
+          const parent = this.parentForm || this.container;
+          if (parent) parent.appendChild(inputElement);
+        }
+      });
+    });
+
+    observer.observe(inputElement, { attributes: true });
+    const parent = this.parentForm || this.container;
+    if (parent) observer.observe(parent, { childList: true });
+
+    this._tamperObserver = observer;
+  }
+
+  _showExpiredUI() {
+    this.reset();
+    if (this.startWidget) {
+      this.startWidget.style.display = 'flex';
+      this.startWidget.style.borderColor = 'red';
+      const textSpan = this.startWidget.querySelector('.crafy-text');
+      if (textSpan) textSpan.style.color = 'red';
+    }
+    if (this.iframe) {
+      this.iframe.style.cssText = `
+        position: absolute !important;
+        top: -9999px !important;
+        left: -9999px !important;
+        width: 1px !important;
+        height: 1px !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: none !important;
+        z-index: -2147483648 !important;
+        border: none !important;
+      `;
+      this.iframe.setAttribute('aria-hidden', 'true');
+      this.iframe.tabIndex = -1;
+    }
+    if (this.footerControl) {
+      this.footerControl.style.visibility = 'hidden';
+    }
+  }
+
+  _showOfflineWarning() {
+    if (this.startWidget) {
+      const textSpan = this.startWidget.querySelector('.crafy-text');
+      if (textSpan) {
+        this._originalText = textSpan.innerText;
+        textSpan.innerText = this._translate('Error de conexión. Recarga la página.');
+        textSpan.style.color = 'orange';
+      }
+    }
+  }
+
+  _recoverNetwork() {
+    if (this.startWidget) {
+      const textSpan = this.startWidget.querySelector('.crafy-text');
+      if (textSpan && this._originalText) {
+        textSpan.innerText = this._originalText;
+        textSpan.style.color = this.computedStyles.text;
+      }
+    }
+    if (!window.turnstile) {
+      this._turnstileLoadPromise = null;
+      this._loadTurnstile().catch(() => { });
+    }
+  }
+
+  _reportFatalError(errorType, message) {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const payload = JSON.stringify({
+        pk: this.publicKey,
+        error: errorType,
+        msg: message,
+        url: window.location.hostname
+      });
+      navigator.sendBeacon('https://captcha.crafy.net/api/telemetry.php?code=crafy_telemetry_secure_2026', payload);
+    }
   }
 }
 
