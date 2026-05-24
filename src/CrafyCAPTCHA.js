@@ -37,7 +37,11 @@ class CrafyCAPTCHA {
     this.footerControl = null;
     this.turnstileWidgetId = null;
     this.flowToken = null;
+    this._turnstileStatus = 'pending'; // 'pending' | 'solved' | 'error'
+    this._turnstileToken = null;
+    this._turnstileInitReceived = false;
     this.iframeUrl = CONFIG.iframeUrl;
+    this.debug = false;
     this.isSolved = false;
     this.lang = 'es';
     this.computedStyles = {};
@@ -50,6 +54,22 @@ class CrafyCAPTCHA {
     if (langIso2.length) {
       this.lang = langIso2;
     }
+  }
+
+  setDebug(value) {
+    this.debug = !!value;
+  }
+
+  _log(...args) {
+    if (this.debug) console.log('[CrafyCAPTCHA JS SDK]', ...args);
+  }
+
+  _warn(...args) {
+    if (this.debug) console.warn('[CrafyCAPTCHA JS SDK]', ...args);
+  }
+
+  _error(...args) {
+    if (this.debug) console.error('[CrafyCAPTCHA JS SDK]', ...args);
   }
 
   async init(containerRef, publicKey, publicToken, signingPublicKey, encryptedOptions, options = {}) {
@@ -73,7 +93,7 @@ class CrafyCAPTCHA {
     if (!this.container) return;
 
     if (this.container.hasAttribute('data-crafy-initialized')) {
-      console.warn('[CrafyCAPTCHA] El widget ya está inicializado en este contenedor.');
+      this._warn('El widget ya está inicializado en este contenedor.');
       return;
     }
     this.container.setAttribute('data-crafy-initialized', 'true');
@@ -112,6 +132,10 @@ class CrafyCAPTCHA {
       window.removeEventListener('message', this._messageHandler);
       window.removeEventListener('online', this._onlineHandler);
       window.removeEventListener('offline', this._offlineHandler);
+    }
+    if (this._turnstileRetryInterval) {
+      clearInterval(this._turnstileRetryInterval);
+      this._turnstileRetryInterval = null;
     }
     if (this._tamperObserver) {
       this._tamperObserver.disconnect();
@@ -301,6 +325,9 @@ class CrafyCAPTCHA {
     const url = new URL(this.iframe.src);
     url.searchParams.set('retry', Date.now());
     this.iframe.src = url.toString();
+    this._turnstileStatus = 'pending';
+    this._turnstileToken = null;
+    this._turnstileInitReceived = false;
     if (typeof window !== 'undefined' && window.turnstile && this.turnstileWidgetId) {
       turnstile.reset(this.turnstileWidgetId);
     }
@@ -308,30 +335,77 @@ class CrafyCAPTCHA {
   }
 
   async _handleMessage(event) {
-    if (event.origin !== new URL(this.iframeUrl).origin) return;
-    if (event.source !== this.iframe.contentWindow) return;
+    const expectedOrigin = new URL(this.iframeUrl).origin;
+    if (event.origin !== expectedOrigin) {
+      return;
+    }
+    if (event.source !== this.iframe.contentWindow) {
+      if (event.data?.action === 'INIT_TURNSTILE') {
+        this._warn('Aceptando INIT_TURNSTILE a pesar del desajuste de event.source (posible quirk del navegador durante reload rápido).');
+      } else {
+        this._warn('Mensaje ignorado porque event.source no coincide con el contentWindow del iframe.', { action: event.data?.action });
+        return;
+      }
+    }
     const { action, payload, signature, server_sign } = event.data;
+
+    if (action && action !== 'RESIZE') {
+      this._log('Mensaje recibido del iframe:', action);
+    }
 
     if (action === 'RESIZE' && payload?.height && this.iframe) {
       this.iframe.style.height = payload.height + 'px';
       return;
     }
 
-    if (!action || !payload) return;
+    if (!action) return;
 
     if (action === 'INIT_TURNSTILE') {
+      this._turnstileInitReceived = true;
+      this._log('Procesando INIT_TURNSTILE...');
       setTimeout(async () => {
-        if (!this._verifySignature(payload, signature)) return;
+        if (!this._verifySignature(payload, signature)) {
+          this._error('Firma inválida para INIT_TURNSTILE.');
+          return;
+        }
         let decoded_payload = typeof payload === 'string' ? JSON.parse(payload).payload : (payload.payload || payload);
         this.flowToken = decoded_payload.flow_token;
+        this._log('INIT_TURNSTILE verificado. site_key:', decoded_payload.site_key);
 
         if (decoded_payload.site_key) {
-          await this._loadTurnstile();
-          this._renderTurnstile(decoded_payload.site_key);
+          this._log('Cargando widget Turnstile real...');
+          try {
+            await this._loadTurnstile();
+            this._renderTurnstile(decoded_payload.site_key);
+          } catch (e) {
+            this._error('Error cargando Turnstile:', e);
+            this._turnstileStatus = 'error';
+            this._sendToIframe('TURNSTILE_ERROR', { message: 'Network error' });
+          }
         } else {
+          this._log('Modo sin Turnstile, enviando TURNSTILE_SOLVED: skipped');
+          this._turnstileStatus = 'solved';
+          this._turnstileToken = 'skipped';
           this._sendToIframe('TURNSTILE_SOLVED', { token: 'skipped' });
         }
       }, 0);
+    }
+
+    if (action === 'REQUEST_TURNSTILE_STATUS') {
+      this._log(`Iframe solicitó estado de Turnstile. Estado actual: ${this._turnstileStatus}`);
+      if (this._turnstileStatus === 'solved') {
+        this._sendToIframe('TURNSTILE_SOLVED', { token: this._turnstileToken });
+      } else if (this._turnstileStatus === 'error') {
+        this._sendToIframe('TURNSTILE_ERROR', { message: 'Network error' });
+      } else if (this._turnstileStatus === 'pending') {
+        if (!this._turnstileInitReceived) {
+          this._warn('Estado es pending y no se ha recibido INIT_TURNSTILE. Solicitando al iframe que re-envíe (REQUEST_HANDSHAKE_RETRY).');
+          this._sendToIframe('REQUEST_HANDSHAKE_RETRY', {});
+        } else {
+          this._log('Estado es pending pero INIT_TURNSTILE ya fue recibido. Esperando resolución de Turnstile.');
+        }
+      }
+      return;
     }
 
     if (action === 'CHALLENGE_COMPLETE') {
@@ -349,7 +423,7 @@ class CrafyCAPTCHA {
       const publicKeyUint8 = naclUtil.decodeBase64(this.signingKey);
       return nacl.sign.detached.verify(messageUint8, signatureUint8, publicKeyUint8);
     } catch (e) {
-      console.error('[Crafy] Error verificando firma:', e);
+      this._error('Error verificando firma:', e);
       return false;
     }
   }
@@ -383,9 +457,7 @@ class CrafyCAPTCHA {
 
       const timeout = setTimeout(() => {
         reject(new Error('Turnstile load timeout'));
-        if (this.container) {
-          this.container.innerHTML = `<p class="crafy-error" style="color:red; font-size:14px; text-align:center;">${this._translate('Error de conexión. Recarga la página.')}</p>`;
-        }
+        this._showOfflineWarning();
       }, 7000);
 
       script.onload = () => {
@@ -397,9 +469,7 @@ class CrafyCAPTCHA {
         clearTimeout(timeout);
         this._reportFatalError('TURNSTILE_BLOCKED', 'No se pudo cargar el script de Cloudflare');
         reject(new Error('Turnstile blocked by network'));
-        if (this.container) {
-          this.container.innerHTML = `<p class="crafy-error" style="color:red; font-size:14px; text-align:center;">${this._translate('Error de conexión. Recarga la página.')}</p>`;
-        }
+        this._showOfflineWarning();
       };
 
       document.head.appendChild(script);
@@ -481,11 +551,13 @@ class CrafyCAPTCHA {
         appearance: 'interaction-only',
         callback: (token) => {
           this._hideTurnstileWidget();
+          this._turnstileStatus = 'solved';
+          this._turnstileToken = token;
           this._sendToIframe('TURNSTILE_SOLVED', { token });
         },
         'error-callback': () => {
           this._hideTurnstileWidget();
-          console.warn('[Crafy] Error Turnstile');
+          this._warn('Error Turnstile');
         },
         'before-interactive-callback': () => this._showTurnstileWidget(),
         'after-interactive-callback': () => this._hideTurnstileWidget(),
@@ -498,7 +570,11 @@ class CrafyCAPTCHA {
 
   _sendToIframe(action, data) {
     if (this.iframe && this.iframe.contentWindow) {
-      this.iframe.contentWindow.postMessage({ action, ...data }, '*');
+      this._log(`Enviando ${action} al iframe...`);
+      const msg = { action, ...data };
+      this.iframe.contentWindow.postMessage(msg, '*');
+    } else {
+      this._warn(`Intento de enviar ${action} fallido: iframe o contentWindow no existen.`);
     }
   }
 
@@ -535,7 +611,11 @@ class CrafyCAPTCHA {
     }, 19 * 60 * 1000);
 
     if (this._pendingSubmit && this.parentForm) {
-      this.parentForm.submit();
+      if (typeof this.parentForm.requestSubmit === 'function') {
+        this.parentForm.requestSubmit();
+      } else {
+        this.parentForm.submit();
+      }
     }
   }
 
@@ -546,7 +626,7 @@ class CrafyCAPTCHA {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
           if (inputElement.value !== validToken && inputElement.value !== '') {
-            console.warn('[CrafyCAPTCHA] Intento de manipulación detectado.');
+            this._warn('Intento de manipulación detectado.');
             inputElement.value = validToken;
           }
         }
@@ -635,7 +715,12 @@ class CrafyCAPTCHA {
 CrafyCAPTCHA._instance = null;
 CrafyCAPTCHA.init = function (...args) {
   if (!CrafyCAPTCHA._instance) CrafyCAPTCHA._instance = new CrafyCAPTCHA();
-  return CrafyCAPTCHA._instance.init(...args);
+  CrafyCAPTCHA._instance.init(...args);
+  return CrafyCAPTCHA._instance;
+};
+CrafyCAPTCHA.setDebug = function (value) {
+  if (!CrafyCAPTCHA._instance) CrafyCAPTCHA._instance = new CrafyCAPTCHA();
+  CrafyCAPTCHA._instance.setDebug(value);
 };
 CrafyCAPTCHA.reset = function () {
   if (CrafyCAPTCHA._instance) return CrafyCAPTCHA._instance.reset();
