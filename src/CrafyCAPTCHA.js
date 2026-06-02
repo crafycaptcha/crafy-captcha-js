@@ -7,16 +7,16 @@ const CONFIG = {
 };
 
 const DICTIONARY = {
-  es: { 'Verifica que eres humano': "Verifica que eres humano", 'Nuevo Desafío': "Nuevo Desafío", 'Error de conexión. Recarga la página.': "Error de conexión. Recarga la página." },
-  en: { 'Verifica que eres humano': "Verify that you are human", 'Nuevo Desafío': "New Challenge", 'Error de conexión. Recarga la página.': "Connection error. Please reload the page." },
-  fr: { 'Verifica que eres humano': "Vérifiez que vous êtes humain", 'Nuevo Desafío': "Nouveau défi", 'Error de conexión. Recarga la página.': "Erreur de connexion. Veuillez recharger la page." },
-  pt: { 'Verifica que eres humano': "Verifique se você é humano", 'Nuevo Desafío': "Novo Desafio", 'Error de conexión. Recarga la página.': "Erro de conexão. Por favor, recarregue a página." },
-  de: { 'Verifica que eres humano': "Bestätigen Sie, dass Sie ein Mensch sind", 'Nuevo Desafío': "Neue Herausforderung", 'Error de conexión. Recarga la página.': "Verbindungsfehler. Bitte laden Sie die Seite neu." },
-  it: { 'Verifica que eres humano': "Verifica di essere umano", 'Nuevo Desafío': "Nuova sfida", 'Error de conexión. Recarga la página.': "Errore di connessione. Ricarica la pagina." },
-  ru: { 'Verifica que eres humano': "Подтвердите, что вы человек", 'Nuevo Desafío': "Новое испытание", 'Error de conexión. Recarga la página.': "Ошибка подключения. Пожалуйста, перезагрузите страницу." },
-  zh: { 'Verifica que eres humano': "验证您是人类", 'Nuevo Desafío': "新挑战", 'Error de conexión. Recarga la página.': "连接错误。请重新加载页面。" },
-  ja: { 'Verifica que eres humano': "人間であることを確認してください", 'Nuevo Desafío': "新しいチャレンジ", 'Error de conexión. Recarga la página.': "接続エラー。ページを再読み込みしてください。" },
-  hi: { 'Verifica que eres humano': "सत्यापित करें कि आप मानव हैं", 'Nuevo Desafío': "नई चुनौती", 'Error de conexión. Recarga la página.': "कनेक्शन त्रुटि। कृपया पृष्ठ को पुनः लोड करें।" }
+  es: { verify_human: "Verifica que eres humano", new_challenge: "Nuevo Desaf\u00edo", connection_error: "Error de conexi\u00f3n. Recarga la p\u00e1gina.", session_expired: "Sesi\u00f3n expirada. Recarga la p\u00e1gina." },
+  en: { verify_human: "Verify that you are human", new_challenge: "New Challenge", connection_error: "Connection error. Please reload the page.", session_expired: "Session expired. Please reload the page." },
+  fr: { verify_human: "V\u00e9rifiez que vous \u00eates humain", new_challenge: "Nouveau d\u00e9fi", connection_error: "Erreur de connexion. Veuillez recharger la page.", session_expired: "Session expir\u00e9e. Veuillez recharger la page." },
+  pt: { verify_human: "Verifique se voc\u00ea \u00e9 humano", new_challenge: "Novo Desafio", connection_error: "Erro de conex\u00e3o. Por favor, recarregue a p\u00e1gina.", session_expired: "Sess\u00e3o expirada. Por favor, recarregue a p\u00e1gina." },
+  de: { verify_human: "Best\u00e4tigen Sie, dass Sie ein Mensch sind", new_challenge: "Neue Herausforderung", connection_error: "Verbindungsfehler. Bitte laden Sie die Seite neu.", session_expired: "Sitzung abgelaufen. Bitte laden Sie die Seite neu." },
+  it: { verify_human: "Verifica di essere umano", new_challenge: "Nuova sfida", connection_error: "Errore di connessione. Ricarica la pagina.", session_expired: "Sessione scaduta. Ricarica la pagina." },
+  ru: { verify_human: "\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0435, \u0447\u0442\u043e \u0432\u044b \u0447\u0435\u043b\u043e\u0432\u0435\u043a", new_challenge: "\u041d\u043e\u0432\u043e\u0435 \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435", connection_error: "\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f. \u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u043f\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443.", session_expired: "\u0421\u0435\u0441\u0441\u0438\u044f \u0438\u0441\u0442\u0435\u043a\u043b\u0430. \u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u043f\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443." },
+  zh: { verify_human: "\u9a8c\u8bc1\u60a8\u662f\u4eba\u7c7b", new_challenge: "\u65b0\u6311\u6218", connection_error: "\u8fde\u63a5\u9519\u8bef\u3002\u8bf7\u91cd\u65b0\u52a0\u8f7d\u9875\u9762\u3002", session_expired: "\u4f1a\u8bdd\u5df2\u8fc7\u671f\u3002\u8bf7\u91cd\u65b0\u52a0\u8f7d\u9875\u9762\u3002" },
+  ja: { verify_human: "\u4eba\u9593\u3067\u3042\u308b\u3053\u3068\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044", new_challenge: "\u65b0\u3057\u3044\u30c1\u30e3\u30ec\u30f3\u30b8", connection_error: "\u63a5\u7d9a\u30a8\u30e9\u30fc\u3002\u30da\u30fc\u30b8\u3092\u518d\u8aad\u307f\u8fbc\u307f\u3057\u3066\u304f\u3060\u3055\u3044\u3002", session_expired: "\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u6709\u52b9\u671f\u9650\u304c\u5207\u308c\u307e\u3057\u305f\u3002\u30da\u30fc\u30b8\u3092\u518d\u8aad\u307f\u8fbc\u307f\u3057\u3066\u304f\u3060\u3055\u3044\u3002" },
+  hi: { verify_human: "\u0938\u0924\u094d\u092f\u093e\u092a\u093f\u0924 \u0915\u0930\u0947\u0902 \u0915\u093f \u0906\u092a \u092e\u093e\u0928\u0935 \u0939\u0948\u0902", new_challenge: "\u0928\u0908 \u091a\u0941\u0928\u094c\u0924\u0940", connection_error: "\u0915\u0928\u0947\u0915\u094d\u0936\u0928 \u0924\u094d\u0930\u0941\u091f\u093f\u0964 \u0915\u0943\u092a\u092f\u093e \u092a\u0943\u0937\u094d\u0920 \u0915\u094b \u092a\u0941\u0928\u0903 \u0932\u094b\u0921 \u0915\u0930\u0947\u0902\u0964", session_expired: "\u0938\u0924\u094d\u0930 \u0938\u092e\u093e\u092a\u094d\u0924 \u0939\u094b \u0917\u092f\u093e\u0964 \u0915\u0943\u092a\u092f\u093e \u092a\u0943\u0937\u094d\u0920 \u0915\u094b \u092a\u0941\u0928\u0903 \u0932\u094b\u0921 \u0915\u0930\u0947\u0902\u0964" }
 };
 
 function utf8ToBase64(str) {
@@ -91,26 +91,8 @@ class CrafyCAPTCHA {
     this.signingKey = signingPublicKey;
     this.options = options;
 
-    if (this.options.optionsUrl) {
-      try {
-        const response = await fetch(this.options.optionsUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_options' })
-        });
-        const data = await response.json();
-        if (data && data.eo) {
-          this.encryptedOptions = data.eo;
-        } else {
-          this.encryptedOptions = this.options.encryptedOptions || '';
-        }
-      } catch (err) {
-        this._error('Error fetching optionsUrl', err);
-        this.encryptedOptions = this.options.encryptedOptions || '';
-      }
-    } else {
-      this.encryptedOptions = this.options.encryptedOptions || '';
-    }
+    await this._fetchOptions();
+    this._startUnifiedExpirationTimer();
 
     this.computedStyles = this._resolveStyles(options.theme, options.style);
     if (this.options.iframeUrl) this.iframeUrl = this.options.iframeUrl;
@@ -163,6 +145,59 @@ class CrafyCAPTCHA {
           this._pendingSubmit = true;
         }
       });
+    }
+  }
+
+  _startUnifiedExpirationTimer() {
+    if (this._expireTimer) clearTimeout(this._expireTimer);
+    // 19 minutos de expiración unificada (1140000 ms)
+    this._expireTimer = setTimeout(() => {
+      this._handleExpiration();
+    }, 19 * 60 * 1000);
+  }
+
+  async _handleExpiration() {
+    this._log('Tiempo de expiración unificada alcanzado.');
+
+    // Limpiamos el token del form si estuviera resuelto
+    const inputName = this.options.inputName || 'CrafyCAPTCHA_token';
+    const input = document.querySelector(`input[name="${inputName}"]`);
+    if (input) input.value = '';
+    this.isSolved = false;
+
+    if (this.options.optionsUrl) {
+      this._log('Refrescando eo expirado vía optionsUrl...');
+      await this._fetchOptions();
+      this.reset();
+      this._startUnifiedExpirationTimer();
+      if (this.options.onExpire) this.options.onExpire();
+    } else {
+      this._log('Sin optionsUrl. Bloqueando por expiración.');
+      this._showExpiredUI(true);
+      if (this.options.onExpire) this.options.onExpire();
+    }
+  }
+
+  async _fetchOptions() {
+    if (this.options.optionsUrl) {
+      try {
+        const response = await fetch(this.options.optionsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get_options' })
+        });
+        const data = await response.json();
+        if (data && data.eo) {
+          this.encryptedOptions = data.eo;
+        } else {
+          this.encryptedOptions = this.options.encryptedOptions || '';
+        }
+      } catch (err) {
+        this._error('Error fetching optionsUrl', err);
+        this.encryptedOptions = this.options.encryptedOptions || '';
+      }
+    } else {
+      this.encryptedOptions = this.options.encryptedOptions || '';
     }
   }
 
@@ -287,7 +322,7 @@ class CrafyCAPTCHA {
     // 1. Widget UI (Síncrono para que se vea rápido)
     this.startWidget = document.createElement('div');
     this.startWidget.className = 'crafy-start-box crafy-disabled';
-    this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox crafy-loading"></div><span class="crafy-text">${this._translate('Verifica que eres humano')}</span></div><div class="crafy-logo">🛡️</div>`;
+    this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox crafy-loading"></div><span class="crafy-text">${this._translate('verify_human')}</span></div><div class="crafy-logo">\u{1f6e1}\ufe0f</div>`;
 
     // 2. Iframe (Estructura base, SIN src inicialmente)
     const iframeName = 'crafy_iframe_' + Math.random().toString(36).substring(2, 15) + Date.now();
@@ -295,7 +330,7 @@ class CrafyCAPTCHA {
     this.iframe.name = iframeName;
     // No usar loading='lazy': el iframe está off-screen y el navegador nunca lo cargaría
     this.iframe.sandbox = "allow-scripts allow-same-origin allow-popups allow-forms";
-    this.iframe.title = this._translate('Verifica que eres humano');
+    this.iframe.title = this._translate('verify_human');
     this.iframe.setAttribute('aria-label', 'CrafyCAPTCHA Security Check');
     this.iframe.setAttribute('aria-hidden', 'true');
     this.iframe.tabIndex = -1;
@@ -321,7 +356,7 @@ class CrafyCAPTCHA {
     this.footerControl = document.createElement('div');
     this.footerControl.className = 'crafy-footer';
     this.footerControl.style.visibility = 'hidden';
-    this.footerControl.innerHTML = `<span>Protected by <a href="https://captcha.crafy.net/" target="_blank" rel="noopener noreferrer" class="crafy-link">CrafyCAPTCHA</a></span><button type="button" class="crafy-reload-btn"><span class="crafy-reload-icon">↻</span> ${this._translate('Nuevo Desafío')}</button>`;
+    this.footerControl.innerHTML = `<span>Protected by <a href="https://captcha.crafy.net/" target="_blank" rel="noopener noreferrer" class="crafy-link">CrafyCAPTCHA</a></span><button type="button" class="crafy-reload-btn"><span class="crafy-reload-icon">\u21bb</span> ${this._translate('new_challenge')}</button>`;
 
     this.footerControl.querySelector('.crafy-reload-btn').addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.reset();
@@ -462,7 +497,7 @@ class CrafyCAPTCHA {
       if (reloadBtn) {
         reloadBtn.style.pointerEvents = 'none';
         reloadBtn.style.opacity = '0.7';
-        reloadBtn.innerHTML = `<span class="crafy-loading" style="display:inline-block; border-width:2px; border-style:solid; width:12px; height:12px; margin-right:6px; border-color:transparent; border-top-color:inherit; border-radius:50%;"></span> ${this._translate('Nuevo Desafío')}`;
+        reloadBtn.innerHTML = `<span class="crafy-loading" style="display:inline-block; border-width:2px; border-style:solid; width:12px; height:12px; margin-right:6px; border-color:transparent; border-top-color:inherit; border-radius:50%;"></span> ${this._translate('new_challenge')}`;
       }
     }
 
@@ -497,7 +532,7 @@ class CrafyCAPTCHA {
       if (reloadBtn) {
         reloadBtn.style.pointerEvents = 'auto';
         reloadBtn.style.opacity = '1';
-        reloadBtn.innerHTML = `<span class="crafy-reload-icon">↻</span> ${this._translate('Nuevo Desafío')}`;
+        reloadBtn.innerHTML = `<span class="crafy-reload-icon">\u21bb</span> ${this._translate('new_challenge')}`;
       }
     }
 
@@ -815,14 +850,6 @@ class CrafyCAPTCHA {
 
     this._protectTokenInput(input, payload_for_server_str);
 
-    if (this._expireTimer) clearTimeout(this._expireTimer);
-    this._expireTimer = setTimeout(() => {
-      input.value = '';
-      this.isSolved = false;
-      this._showExpiredUI();
-      if (this.options.onExpire) this.options.onExpire();
-    }, 19 * 60 * 1000);
-
     if (this._pendingSubmit && this.parentForm) {
       if (typeof this.parentForm.requestSubmit === 'function') {
         this.parentForm.requestSubmit();
@@ -839,7 +866,7 @@ class CrafyCAPTCHA {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
           if (inputElement.value !== validToken && inputElement.value !== '') {
-            this._warn('Intento de manipulación detectado.');
+            this._warn('Intento de manipulaciÃ³n detectado.');
             inputElement.value = validToken;
           }
         }
@@ -857,13 +884,28 @@ class CrafyCAPTCHA {
     this._tamperObserver = observer;
   }
 
-  _showExpiredUI() {
+  _showExpiredUI(permanent = false) {
     this.reset();
     if (this.startWidget) {
       this.startWidget.style.display = 'flex';
       this.startWidget.style.borderColor = 'red';
       const textSpan = this.startWidget.querySelector('.crafy-text');
-      if (textSpan) textSpan.style.color = 'red';
+      if (textSpan) {
+        textSpan.style.color = 'red';
+        if (permanent) {
+          textSpan.innerText = this._translate('session_expired');
+        }
+      }
+      if (permanent) {
+        this.startWidget.style.pointerEvents = 'none';
+        this.startWidget.classList.add('crafy-disabled');
+        const checkbox = this.startWidget.querySelector('.crafy-checkbox');
+        if (checkbox) {
+          checkbox.classList.remove('crafy-loading');
+          checkbox.style.borderColor = 'red';
+          checkbox.innerHTML = '<span style="color:red; margin-left:6px; font-weight:bold; line-height:20px;">\u2715</span>';
+        }
+      }
     }
     if (this.iframe) {
       this.iframe.style.cssText = `
@@ -891,7 +933,7 @@ class CrafyCAPTCHA {
       const textSpan = this.startWidget.querySelector('.crafy-text');
       if (textSpan) {
         this._originalText = textSpan.innerText;
-        textSpan.innerText = this._translate('Error de conexión. Recarga la página.');
+        textSpan.innerText = this._translate('connection_error');
         textSpan.style.color = 'orange';
       }
     }
