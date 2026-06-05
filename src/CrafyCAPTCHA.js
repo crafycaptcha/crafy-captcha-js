@@ -385,7 +385,7 @@ class CrafyCAPTCHA {
     if (this.computedStyles.text) addInput('text', this.computedStyles.text);
     if (this.computedStyles.primary) addInput('primary', this.computedStyles.primary);
     if (this.computedStyles.border) addInput('border', this.computedStyles.border);
-    this.retryInput = addInput('retry', '');
+    addInput('parent_origin', window.location.origin);
 
     // Ensamblar en memoria
     wrapper.appendChild(this.startWidget);
@@ -412,6 +412,7 @@ class CrafyCAPTCHA {
       this.submitForm.submit();
 
       this.isReady = true;
+      if (typeof this._flushMessageQueue === 'function') this._flushMessageQueue();
       this.startWidget.classList.remove('crafy-disabled');
       const checkbox = this.startWidget.querySelector('.crafy-checkbox');
       if (checkbox) checkbox.classList.remove('crafy-loading');
@@ -501,7 +502,6 @@ class CrafyCAPTCHA {
       }
     }
 
-    this.retryInput.value = Date.now();
     const cdweo = await this._getEncryptedTelemetry();
     this.cdweoInput.value = JSON.stringify(cdweo);
     this.submitForm.submit();
@@ -544,6 +544,7 @@ class CrafyCAPTCHA {
     }
     this._hideTurnstileWidget();
     this._isResetting = false;
+    if (typeof this._flushMessageQueue === 'function') this._flushMessageQueue();
   }
 
   async _fetchTurnstileSiteKey() {
@@ -817,12 +818,39 @@ class CrafyCAPTCHA {
   }
 
   _sendToIframe(action, data) {
+    if (!this._messageQueue) this._messageQueue = [];
+    const msg = { action, ...data };
+
+    if (this._isResetting || !this.isReady) {
+      this._log(`Encolando ${action} porque el widget se está reseteando o no está listo...`);
+      this._messageQueue.push(msg);
+      return;
+    }
+
     if (this.iframe && this.iframe.contentWindow) {
       this._log(`Enviando ${action} al iframe...`);
-      const msg = { action, ...data };
-      this.iframe.contentWindow.postMessage(msg, '*');
+      let targetOrigin;
+      try {
+        targetOrigin = new URL(this.iframeUrl).origin;
+      } catch (e) {
+        this._warn('Fallo al resolver el origin del iframe. Se cancela envío por seguridad.');
+        return;
+      }
+      this.iframe.contentWindow.postMessage(msg, targetOrigin);
     } else {
       this._warn(`Intento de enviar ${action} fallido: iframe o contentWindow no existen.`);
+    }
+  }
+
+  _flushMessageQueue() {
+    if (this._messageQueue && this._messageQueue.length > 0) {
+      this._log(`Procesando ${this._messageQueue.length} mensajes encolados...`);
+      while (this._messageQueue.length > 0) {
+        const msg = this._messageQueue.shift();
+        const data = { ...msg };
+        delete data.action;
+        this._sendToIframe(msg.action, data);
+      }
     }
   }
 
@@ -968,9 +996,16 @@ class CrafyCAPTCHA {
 
 // Soporte para Singleton
 CrafyCAPTCHA._instance = null;
-CrafyCAPTCHA.init = function (...args) {
-  if (!CrafyCAPTCHA._instance) CrafyCAPTCHA._instance = new CrafyCAPTCHA();
-  CrafyCAPTCHA._instance.init(...args);
+CrafyCAPTCHA.init = function (containerRef, publicKey, publicToken, signingPublicKey, options = {}) {
+  if (CrafyCAPTCHA._instance) {
+    if (CrafyCAPTCHA._instance.publicKey && CrafyCAPTCHA._instance.publicKey !== publicKey) {
+      console.warn('[CrafyCAPTCHA JS SDK] Warning: CrafyCAPTCHA already initialized with different credentials. Ignoring new init call.');
+      return CrafyCAPTCHA._instance;
+    }
+  } else {
+    CrafyCAPTCHA._instance = new CrafyCAPTCHA();
+  }
+  CrafyCAPTCHA._instance.init(containerRef, publicKey, publicToken, signingPublicKey, options);
   return CrafyCAPTCHA._instance;
 };
 CrafyCAPTCHA.setDebug = function (value) {
