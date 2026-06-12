@@ -35,6 +35,9 @@ function _0x2f13(_0x4cf7c9, _0x219f97) { _0x4cf7c9 = _0x4cf7c9 - (0x20c7 + -0x16
 
 class CrafyCAPTCHA {
   constructor() {
+    this.autoLoad = true;
+    this._iframeLoadRequested = false;
+    this._iframeSrcSet = false;
     this.publicKey = null;
     this.publicToken = null;
     this.signingKey = null;
@@ -62,6 +65,20 @@ class CrafyCAPTCHA {
     const langIso2 = rawLang.split(/[-_]/)[0].toLowerCase();
     if (langIso2.length) {
       this.lang = langIso2;
+    }
+  }
+
+  setAutoLoad(value) {
+    this.autoLoad = !!value;
+  }
+
+  loadIframe() {
+    if (this.autoLoad) return;
+    if (this._iframeLoadRequested) return;
+    this._iframeLoadRequested = true;
+
+    if (this._triggerPreload) {
+      this._triggerPreload();
     }
   }
 
@@ -321,8 +338,8 @@ class CrafyCAPTCHA {
 
     // 1. Widget UI (Síncrono para que se vea rápido)
     this.startWidget = document.createElement('div');
-    this.startWidget.className = 'crafy-start-box crafy-disabled';
-    this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox crafy-loading"></div><span class="crafy-text">${this._translate('verify_human')}</span></div><div class="crafy-logo">\u{1f6e1}\ufe0f</div>`;
+    this.startWidget.className = 'crafy-start-box' + (this.autoLoad ? ' crafy-disabled' : '');
+    this.startWidget.innerHTML = `<div class="crafy-content"><div class="crafy-checkbox${this.autoLoad ? ' crafy-loading' : ''}"></div><span class="crafy-text">${this._translate('verify_human')}</span></div><div class="crafy-logo">\u{1f6e1}\ufe0f</div>`;
 
     // 2. Iframe (Estructura base, SIN src inicialmente)
     const iframeName = 'crafy_iframe_' + Math.random().toString(36).substring(2, 15) + Date.now();
@@ -399,13 +416,12 @@ class CrafyCAPTCHA {
     // Inyectar TODO de un solo golpe al DOM real (1 solo reflow) dentro del shadowRoot
     this.shadowRoot.appendChild(fragment);
 
-    let iframeSrcSet = false;
     this.isReady = false;
     this._iframeLoaded = false;
 
     const preloadIframe = async () => {
-      if (iframeSrcSet) return;
-      iframeSrcSet = true;
+      if (this._iframeSrcSet) return;
+      this._iframeSrcSet = true;
 
       this.iframe.addEventListener('load', () => {
         this._iframeLoaded = true;
@@ -425,6 +441,7 @@ class CrafyCAPTCHA {
       const checkbox = this.startWidget.querySelector('.crafy-checkbox');
       if (checkbox) checkbox.classList.remove('crafy-loading');
     };
+    this._triggerPreload = preloadIframe;
 
     this._revealIframe = () => {
       this.iframeOverlay.style.display = 'none';
@@ -443,7 +460,12 @@ class CrafyCAPTCHA {
     };
 
     this._showCaptchaUI = () => {
-      if (!this.isReady) return;
+      if (this.autoLoad && !this.isReady) return;
+
+      if (!this.autoLoad && !this._iframeLoadRequested) {
+        this.loadIframe();
+      }
+
       this.startWidget.style.display = 'none';
 
       // Mostrar overlay spinner mientras el iframe termina de cargar
@@ -461,15 +483,17 @@ class CrafyCAPTCHA {
     // Evento Click: mostrar el iframe ya pre-cargado (o forzar carga si aún no ocurrió)
     this.startWidget.addEventListener('click', this._showCaptchaUI);
 
-    // Pre-cargar el iframe de forma no intrusiva:
+    // Pre-cargar el iframe de forma no intrusiva si autoLoad es true o ya fue solicitado:
     // requestIdleCallback (con timeout de 2s) > setTimeout 500ms como fallback.
     // Esto asegura que el iframe empiece a cargar poco después del render inicial
     // de la página, sin competir con los recursos críticos del host.
-    if (typeof window !== 'undefined') {
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(preloadIframe, { timeout: 2000 });
-      } else {
-        setTimeout(preloadIframe, 500);
+    if (this.autoLoad || this._iframeLoadRequested) {
+      if (typeof window !== 'undefined') {
+        if (window.requestIdleCallback) {
+          window.requestIdleCallback(preloadIframe, { timeout: 2000 });
+        } else {
+          setTimeout(preloadIframe, 500);
+        }
       }
     }
   }
@@ -481,12 +505,20 @@ class CrafyCAPTCHA {
 
     this.isReady = false;
     this._iframeLoaded = false;
+    this._iframeSrcSet = false;
+    this._iframeLoadRequested = false;
 
     // Feedback visual en el startWidget (si estuviera visible)
     if (this.startWidget) {
-      this.startWidget.classList.add('crafy-disabled');
-      const checkbox = this.startWidget.querySelector('.crafy-checkbox');
-      if (checkbox) checkbox.classList.add('crafy-loading');
+      if (this.autoLoad) {
+        this.startWidget.classList.add('crafy-disabled');
+        const checkbox = this.startWidget.querySelector('.crafy-checkbox');
+        if (checkbox) checkbox.classList.add('crafy-loading');
+      } else {
+        this.startWidget.classList.remove('crafy-disabled');
+        const checkbox = this.startWidget.querySelector('.crafy-checkbox');
+        if (checkbox) checkbox.classList.remove('crafy-loading');
+      }
     }
 
     // Feedback visual inmediato en el iframe y footer (lo que el usuario ve)
@@ -522,6 +554,9 @@ class CrafyCAPTCHA {
     });
 
     this.isReady = true;
+    this._iframeSrcSet = true;
+    this._iframeLoadRequested = true;
+
     if (this.startWidget) {
       this.startWidget.classList.remove('crafy-disabled');
       const checkbox = this.startWidget.querySelector('.crafy-checkbox');
@@ -1017,6 +1052,13 @@ CrafyCAPTCHA.init = function (containerRef, publicKey, publicToken, signingPubli
 CrafyCAPTCHA.setDebug = function (value) {
   if (!CrafyCAPTCHA._instance) CrafyCAPTCHA._instance = new CrafyCAPTCHA();
   CrafyCAPTCHA._instance.setDebug(value);
+};
+CrafyCAPTCHA.setAutoLoad = function (value) {
+  if (!CrafyCAPTCHA._instance) CrafyCAPTCHA._instance = new CrafyCAPTCHA();
+  CrafyCAPTCHA._instance.setAutoLoad(value);
+};
+CrafyCAPTCHA.loadIframe = function () {
+  if (CrafyCAPTCHA._instance) return CrafyCAPTCHA._instance.loadIframe();
 };
 CrafyCAPTCHA.reset = function () {
   if (CrafyCAPTCHA._instance) return CrafyCAPTCHA._instance.reset();
