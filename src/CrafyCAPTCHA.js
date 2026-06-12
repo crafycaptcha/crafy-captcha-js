@@ -33,6 +33,7 @@ function _0x2f13(_0x4cf7c9, _0x219f97) { _0x4cf7c9 = _0x4cf7c9 - (0x20c7 + -0x16
 // ------------------------------------------
 // ------------------------------------------
 
+
 class CrafyCAPTCHA {
   constructor() {
     this.autoLoad = true;
@@ -98,7 +99,7 @@ class CrafyCAPTCHA {
     if (this.debug) console.error('[CrafyCAPTCHA JS SDK]', ...args);
   }
 
-  async init(containerRef, publicKey, publicToken, signingPublicKey, options = {}) {
+  async init(containerRef, publicKey, publicToken, signingPublicKey, options = {}, internalOptions = {}) {
     // 1. Ceder el hilo de ejecución momentáneamente (Yield) 
     // Evita bloquear la renderización inicial del DOM de la página del cliente
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -107,6 +108,7 @@ class CrafyCAPTCHA {
     this.publicToken = publicToken;
     this.signingKey = signingPublicKey;
     this.options = options;
+    this.internalOptions = internalOptions || {};
 
     await this._fetchOptions();
     this._startUnifiedExpirationTimer();
@@ -198,10 +200,16 @@ class CrafyCAPTCHA {
   async _fetchOptions() {
     if (this.options.optionsUrl) {
       try {
+        let payload = Object.assign({}, this.internalOptions.fetchOptionsParameters || {});
+        if ('action' in payload) {
+          this._warn("El parámetro 'action' está reservado en fetchOptionsParameters y será sobrescrito.");
+        }
+        payload.action = 'get_options';
+
         const response = await fetch(this.options.optionsUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_options' })
+          body: JSON.stringify(payload)
         });
         const data = await response.json();
         if (data && data.eo) {
@@ -1037,7 +1045,7 @@ class CrafyCAPTCHA {
 
 // Soporte para Singleton
 CrafyCAPTCHA._instance = null;
-CrafyCAPTCHA.init = function (containerRef, publicKey, publicToken, signingPublicKey, options = {}) {
+CrafyCAPTCHA.init = function (containerRef, publicKey, publicToken, signingPublicKey, options = {}, internalOptions = {}) {
   if (CrafyCAPTCHA._instance) {
     if (CrafyCAPTCHA._instance.publicKey && CrafyCAPTCHA._instance.publicKey !== publicKey) {
       console.warn('[CrafyCAPTCHA JS SDK] Warning: CrafyCAPTCHA already initialized with different credentials. Ignoring new init call.');
@@ -1046,7 +1054,7 @@ CrafyCAPTCHA.init = function (containerRef, publicKey, publicToken, signingPubli
   } else {
     CrafyCAPTCHA._instance = new CrafyCAPTCHA();
   }
-  CrafyCAPTCHA._instance.init(containerRef, publicKey, publicToken, signingPublicKey, options);
+  CrafyCAPTCHA._instance.init(containerRef, publicKey, publicToken, signingPublicKey, options, internalOptions);
   return CrafyCAPTCHA._instance;
 };
 CrafyCAPTCHA.setDebug = function (value) {
